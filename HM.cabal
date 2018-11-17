@@ -1,0 +1,26 @@
+name:                HM
+version:             0.1.0.0
+-- synopsis:
+-- description:
+license:             ISC
+license-file:        LICENSE
+author:              Iavor Diatchki
+maintainer:          iavor.diatchki@gmail.com
+copyright:           Iavor Diatchk 2018
+category:            Development
+build-type:          Simple
+extra-source-files:  CHANGELOG.md
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     AST,
+                       Parser, ParserMonad, Lexer, HMPanic
+  build-depends:       base >=4.11 && <4.12,
+                       text >=1.2 && <1.3,
+                       containers >=0.5 && <0.6,
+                       array,
+                       alex-tools,
+                       panic
+  hs-source-dirs:      src
+  build-tools:         alex, happy
+  default-language:    Haskell2010
