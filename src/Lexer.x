@@ -88,6 +88,7 @@ $white+             { return [] }
 
 "\\"                { lexeme TokBackSlash }
 "|"                 { lexeme TokBar       }
+"="                 { lexeme TokEq        }
 
 @ident              { lexeme TokIdent     }
 @op                 { lexeme TokOp        }
@@ -117,6 +118,7 @@ data Token =
 
   | TokArrowL | TokArrowR
   | TokBackSlash | TokBar
+  | TokEq
 
   | TokEOF
   | TokError

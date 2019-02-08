@@ -1,5 +1,6 @@
 module ParserMonad
   ( Parser
+  , InParser(..)
   , parseStartingAt
   , parse
   , happyGetToken
@@ -8,6 +9,7 @@ module ParserMonad
   , ParseError(..)
 
   , exprToPat
+  , mkDecl
   ) where
 
 import Control.Monad(liftM,ap)
@@ -18,6 +20,8 @@ import AlexTools(prevPos, startPos)
 import Lexer
 import AST
 import HMPanic
+
+data InParser = InParser
 
 newtype Parser a = Parser ([Lexeme Token] ->
                             Either ParseError (a, [Lexeme Token]))
@@ -95,6 +99,23 @@ happyError = Parser $ \ls ->
            t : _ -> Just $ sourceFrom $ lexemeRange t
 
 
-exprToPat :: Expr -> Parser Pat
-exprToPat = undefined
+exprToPat :: Expr InParser -> Parser (Pat InParser)
+exprToPat expr = undefined {-
+  case expr of
+    EInfix e1 op e2 -> PInfix <$> exprToPat e1 <*> pure op <*> exprToPat e2
+    EApp e1 e2
+    EVar x
+    ETuple es       -> PTuple <$> mapM exprToPat es
+    EList es        -> PList  <$> mapM exprToPat es
+
+    EListComp {}    -> undefined
+    EAbs {}         -> undefined
+    EIf {}          -> undefined
+    ECase {}        -> undefined
+    EDo {}          -> undefined
+-}
+
+
+mkDecl :: Expr InParser -> Expr InParser -> Parser (Decl InParser)
+mkDecl = undefined
 
