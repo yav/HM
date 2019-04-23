@@ -14,7 +14,13 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     AST,
-                       Parser, ParserMonad, Lexer, HMPanic
+                       SynCat,
+                       HMPanic,
+                       Parser
+                       Parser.Lexer,
+                       Parser.Monad,
+                       Parser.AST
+
   build-depends:       base,
                        text,
                        containers,
@@ -23,4 +29,5 @@ library
                        panic
   hs-source-dirs:      src
   build-tools:         alex, happy
+  ghc-options:         -Wall
   default-language:    Haskell2010

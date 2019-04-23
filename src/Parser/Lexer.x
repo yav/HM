@@ -2,7 +2,7 @@
 {-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
-module Lexer
+module Parser.Lexer
   ( lexer
   , Lexeme(..)
   , Token(..)

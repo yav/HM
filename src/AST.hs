@@ -1,45 +1,52 @@
+{-# Language TypeFamilies, ExistentialQuantification, DataKinds #-}
 module AST where
 
-import Data.Text(Text)
+import Data.Kind(Type)
+import SynCat
 
-data Ident i  = Ident Text
-              deriving Show
+-- | 'Ident' is used to name entities.
+type family Ident (i :: SynCat -> Type)
 
-data Expr i   = EInfix (Expr i) (Ident i) (Expr i)
-              | EApp (Expr i) (Expr i)
-              | EAbs [Pat i] (Expr i)
-              | EIf [Match i] (Expr i)
-              | ECase (Expr i) [(Alt i)]
-              | EDo [Guard i] (Expr i)
-              | EVar (Ident i)
-              | ETuple [Expr i]
-              | EList [Expr i]
-              | EListComp (Expr i) [[Guard i]]
-              | ELet (Decl i) (Expr i)
-                deriving Show
+-- | 'Name' is used to refer to entities.
+type family Name  (i :: SynCat -> Type)
 
-data Pat i    = PVar (Ident i)
-              | PWild
-              | PTuple [Pat i]
-              | PList [Pat i]
-              | PCon (Ident i) [Pat i]
-              | PInfix (Pat i) (Ident i) (Pat i)
-                deriving Show
+data Syn syn c =
+    (c ~ Expr)  => EInfix (syn Expr) (Name syn) (syn Expr)
+  | (c ~ Expr)  => EApp (syn Expr) (syn Expr)
+  | (c ~ Expr)  => EAbs [syn Pat]  (syn Expr)
+  | (c ~ Expr)  => EIf [syn Match] (syn Expr)
+  | (c ~ Expr)  => ECase (syn Expr)  [syn Alt]
+  | (c ~ Expr)  => EDo [syn Stmt] (syn Expr)
+  | (c ~ Expr)  => EVar (Name syn)
+  | (c ~ Expr)  => ETuple [syn Expr]
+  | (c ~ Expr)  => EList [syn Expr]
+  | (c ~ Expr)  => EListComp (syn Expr) [[syn Guard]]
+  | (c ~ Expr)  => ELet (syn Decl) (syn Expr)
 
-data Match i  = Match [Guard i] (Expr i)
-                -- ^ If all guards succeed, then give expr
-                deriving Show
+  | (c ~ Pat)   => PVar (Ident syn)
+  | (c ~ Pat)   => PWild
+  | (c ~ Pat)   => PTuple [syn Pat]
+  | (c ~ Pat)   => PList [syn Pat]
+  | (c ~ Pat)   => PCon (Name syn) [syn Pat]
+  | (c ~ Pat)   => PInfix (syn Pat) (Name syn) (syn Pat)
 
-data Guard i  = GuardBool (Expr i)          -- ^ Boolean, True <- Expr
-              | GuardLet  (Decl i)
-              | GuardPat  (Pat i) (Expr i)  -- ^ Pattern Guard
-                deriving Show
+  | (c ~ Match) => IfMatch [syn Guard] (syn Expr)
 
-data Alt i    = Alt (Pat i) [Match i]
-                deriving Show
+  | (c ~ Guard) => GuardBool (syn Expr)
+  | (c ~ Guard) => GuardLet (syn Decl)
+  | (c ~ Guard) => GuardPat (syn Pat)  (syn Expr)
 
-data Decl i   = Fun (Ident i) [Pat i]{-1+-} (Expr i)
-              | PBind (Pat i) (Expr i)
-              | DAnd (Decl i) (Decl i)
-              | DLet (Decl i) (Decl i)
-                deriving Show
+  | (c ~ Stmt)  => StmtBind (syn Pat) (syn Expr)
+  | (c ~ Stmt)  => StmtNoBind (syn Expr)
+  | (c ~ Stmt)  => StmtLet (syn Decl)
+
+  | (c ~ Alt)   => CaseAlt (syn Pat) [syn Match]
+
+  | (c ~ Decl)  => DFun (Ident syn) [syn Pat] (syn Expr)
+  | (c ~ Decl)  => DPBind (syn Pat) (syn Expr)
+  | (c ~ Decl)  => DAnd (syn Decl) (syn Decl)
+  | (c ~ Decl)  => DLet (syn Decl) (syn Decl)
+
+
+
+

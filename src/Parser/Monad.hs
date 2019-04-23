@@ -1,6 +1,6 @@
-module ParserMonad
+{-# Language OverloadedStrings #-}
+module Parser.Monad
   ( Parser
-  , InParser(..)
   , parseStartingAt
   , parse
   , happyGetToken
@@ -10,6 +10,12 @@ module ParserMonad
 
   , exprToPat
   , mkDecl
+
+  -- Utilities
+  , List
+  , single
+  , snoc
+  , toList
   ) where
 
 import Control.Monad(liftM,ap)
@@ -17,11 +23,10 @@ import Control.Exception (Exception)
 import Data.Text(Text)
 import AlexTools(prevPos, startPos)
 
-import Lexer
-import AST
+import Parser.Lexer
+import Parser.AST
 import HMPanic
 
-data InParser = InParser
 
 newtype Parser a = Parser ([Lexeme Token] ->
                             Either ParseError (a, [Lexeme Token]))
@@ -99,23 +104,58 @@ happyError = Parser $ \ls ->
            t : _ -> Just $ sourceFrom $ lexemeRange t
 
 
-exprToPat :: Expr InParser -> Parser (Pat InParser)
-exprToPat expr = undefined {-
-  case expr of
-    EInfix e1 op e2 -> PInfix <$> exprToPat e1 <*> pure op <*> exprToPat e2
-    EApp e1 e2
-    EVar x
-    ETuple es       -> PTuple <$> mapM exprToPat es
-    EList es        -> PList  <$> mapM exprToPat es
+exprToPat :: Expr -> Parser Pat
+exprToPat expr =
+  case psynNode expr of
+    EInfix e1 op e2 ->
+      mk <$> (PInfix <$> exprToPat e1 <*> pure op <*> exprToPat e2)
 
-    EListComp {}    -> undefined
-    EAbs {}         -> undefined
-    EIf {}          -> undefined
-    ECase {}        -> undefined
-    EDo {}          -> undefined
--}
+    EList es ->
+      mk <$> (PList <$> mapM exprToPat es)
+
+    ETuple es ->
+      mk <$> (PTuple <$> mapM exprToPat es)
+
+    EVar x ->
+      case x of
+        Qual {} -> bad
+        Unqual i
+          | identText i == "_"    -> pure (mk PWild)
+          | otherwise             -> pure (mk (PVar i))
+
+    EApp e1 e2 -> pApp e1 [e2]
+
+    EListComp {}    -> bad
+    EAbs {}         -> bad
+    EIf {}          -> bad
+    ECase {}        -> bad
+    EDo {}          -> bad
+    ELet {}         -> bad
+  where
+  bad  = happyErrorAt (sourceFrom (psynRange expr))
+  mk x = ParserSyn { psynRange = psynRange expr, psynNode = x }
+
+  pApp :: Expr -> [Expr] -> Parser Pat
+  pApp f es =
+    case psynNode f of
+      EApp e1 e2 -> pApp e1 (e2 : es)
+      EVar x     -> do ps <- mapM exprToPat es    -- underscore?
+                       pure (mk (PCon x ps))
+      _          -> bad
 
 
-mkDecl :: Expr InParser -> Expr InParser -> Parser (Decl InParser)
+mkDecl :: Expr -> Expr -> Parser Decl
 mkDecl = undefined
 
+--------------------------------------------------------------------------------
+
+type List a = [a] -> [a]
+
+single :: a -> List a
+single a = (a :)
+
+snoc :: List a -> a -> List a
+snoc xs a = xs . (a :)
+
+toList :: List a -> [a]
+toList xs = xs []

@@ -1,9 +1,9 @@
 {
 module Parser where
 
-import AST
-import Lexer
-import ParserMonad
+import Parser.Lexer
+import Parser.Monad
+import Parser.AST
 
 }
 
@@ -43,95 +43,116 @@ import ParserMonad
 
 %%
 
-decl :: { Decl InParser }
-  : exprInfixLeft exprSimpleApp '=' expr {% mkDecl ($1 $2) $4 }
+decl                               :: { Decl }
+  : exprInfixLeft exprSimpleApp
+      '=' expr                        {% mkDecl ($1 $2) $4 }
 
-op :: { Ident InParser }
-  : OP                                { Ident (lexemeText $1) }
+op :: { Name }
+  : OP                                { mkUnqual $1 }
 
-ident :: { Ident InParser }
-  : IDENT                             { Ident (lexemeText $1) }
+name                               :: { Name }
+  : IDENT                             { mkUnqual $1 }
 
-expr :: { Expr InParser }
+expr                               :: { Expr }
   : exprInfixLeft exprApp             { $1 $2 }
 
-exprInfixLeft :: { Expr InParser -> Expr InParser }
-  : exprInfixLeft exprSimpleApp op    { EInfix ($1 $2) $3 }
+exprInfixLeft                      :: { Expr -> Expr }
+  : exprInfixLeft exprSimpleApp op    { let left = $1 $2
+                                        in psynAt left $3 . EInfix left $3 }
   |                                   { id }
 
-exprApp :: { Expr InParser }
-  : exprSimpleApp longExpr            { EApp $1 $2 }
+exprApp                            :: { Expr }
+  : exprSimpleApp longExpr            { psynAt $1 $2 (EApp $1 $2) }
   | exprSimpleApp                     { $1 }
   | longExpr                          { $1 }
 
-exprSimpleApp :: { Expr InParser }
+exprSimpleApp                      :: { Expr }
   : exprAtom                          { $1 }
-  | exprSimpleApp exprAtom            { EApp $1 $2 }
+  | exprSimpleApp exprAtom            { psynAt $1 $2 (EApp $1 $2) }
 
-longExpr :: { Expr InParser }
-  : '\\' patAtoms '->' expr           { EAbs $2 $4 }
-  | 'if' matches 'else' expr          { EIf $2 $4 }
+longExpr                           :: { Expr }
+  : '\\' patAtoms '->' expr           { psynAt $1 $4 (EAbs $2 $4) }
+  | 'if' matches 'else' expr          { psynAt $1 $4 (EIf $2 $4) }
 
-exprAtom :: { Expr InParser }
+exprAtom                           :: { Expr }
   : '(' exprsComma ')'                { case $2 of
                                           [e] -> e
-                                          x -> ETuple x }
-  | '[' exprsComma ']'                { EList $2 }
-  | '[' expr lcBranches ']'           { EListComp $2 $3 }
-  | ident                             { EVar $1 }
-  | 'case' expr '{' alts '}'          { ECase $2 $4 }
-  | 'do' '{' guards ';' expr '}'      { EDo $3 $5 }
-  | 'do' '{' expr '}'                 { EDo [] $3 }
+                                          x   -> psynAt $1 $3 (ETuple x) }
+  | '[' exprsComma ']'                { psynAt $1 $3 (EList $2) }
+  | '[' expr lcBranches ']'           { psynAt $1 $3 (EListComp $2 $3) }
+  | name                              { psynAt $1 $1 (EVar $1) }
+  | 'case' expr '{' alts '}'          { psynAt $1 $5 (ECase $2 $4) }
+  | 'do' '{' stmts ';' expr '}'       { psynAt $1 $6 (EDo $3 $5) }
+  | 'do' '{' expr '}'                 { psynAt $1 $4 (EDo [] $3) }
 
-exprsComma :: { [Expr InParser ] }
+exprsComma                         :: { [Expr] }
   :                                   { [] }
   | exprsComma1                       { $1 }
 
-exprsComma1 :: { [Expr InParser ] }
-  : expr                              { [$1] }
-  | exprsComma1 ',' expr              { $1 ++ [$3] }
+exprsComma1 :: { [Expr] }
+  : SepBy1(',',expr)                  { $1 }
 
-lcBranch :: { [Guard InParser] }
+lcBranches                         :: { [[Guard]] }
+  : List1(lcBranch)                   { $1 }
+
+lcBranch                           :: { [Guard] }
   : '|' guards                        { $2 }
 
-lcBranches :: { [[Guard InParser]] }
-lcBranches
-  : lcBranch                          { [ $1 ] }
-  | lcBranches lcBranch               { $1 ++ [$2] }
+matches                            :: { [Match] }
+  : SepBy1('|',match)                 { $1 }
 
-match :: { Match InParser }
-  : guards 'then' expr                { Match $1 $3 }
+match                              :: { Match }
+  : guards 'then' expr                { psynAt $1 $3 (IfMatch $1 $3) }
 
-matches :: { [Match InParser] }
-  : match                             { [$1] }
-  | matches '|' match                 { $1 ++ [$3] }
-
-pat :: { Pat InParser }
+pat                                :: { Pat }
   : exprInfixLeft exprSimpleApp       {% exprToPat ($1 $2) }
 
-patAtom :: { Pat InParser }
+patAtoms                           :: { [Pat] }
+  : List1(patAtom)                    { $1 }
+
+patAtom                            :: { Pat }
   : exprAtom                          {% exprToPat $1 }
 
-patAtoms :: { [Pat InParser] }
-  : patAtom                           { [$1] }
-  | patAtoms patAtom                  { $1 ++ [$2] }
+alts                               :: { [Alt] }
+  : SepBy1(';',alt)                   { $1 }
 
-alts :: { [Alt InParser] }
-  : alt                               { [$1] }
-  | alts ';' alt                      { $1 ++ [$3] }
+alt                                :: { Alt }
+  : pat 'then' expr                   { psynAt $1 $3
+                                            (CaseAlt $1 [ psynAt $3 $3
+                                                            (IfMatch [] $3) ]) }
+  | pat '|' matches                   { psynAt $1 $3 (CaseAlt $1 $3) }
 
-alt :: { Alt InParser }
-  : pat 'then' expr                   { Alt $1 [ Match [] $3 ] }
-  | pat '|' matches                   { Alt $1 $3 }
+guards                             :: { [Guard] }
+  : SepBy1(',', guard)                { $1 }
 
-guards :: { [Guard InParser] }
-  : guard                             { [$1] }
-  | guards ',' guard                  { $1 ++ [$3] }
+guard                              :: { Guard }
+  : expr                              { psynAt $1 $1 (GuardBool $1) }
+  | pat '<-' expr                     { psynAt $1 $3 (GuardPat  $1 $3) }
 
-guard :: { Guard InParser }
-  : expr                              { GuardBool $1 }
-  | pat '<-' expr                     { GuardPat  $1 $3 }
+stmts                              :: { [Stmt] }
+  : SepBy1(',',stmt)                  { $1 }
 
+stmt                               :: { Stmt }
+  : pat '<-' expr                     { psynAt $1 $3 (StmtBind $1 $3) }
+  | expr                              { psynAt $1 $1 (StmtNoBind $1) }
+
+
+--------------------------------------------------------------------------------
+
+
+List1(thing)                       :: { [thing] }
+  : List1_(thing)                     { toList $1 }
+
+List1_(thing)                      :: { List thing }
+  : thing                             { single $1  }
+  | List1_(thing) thing               { snoc $1 $2 }
+
+SepBy1(sep,thing)                  :: { [thing] }
+  : SepBy1_(sep,thing)                { toList $1  }
+
+SepBy1_(sep,thing)                 :: { List thing }
+  : thing                             { single $1  }
+  | SepBy1_(sep,thing) sep thing      { snoc $1 $3 }
 
 {
 
