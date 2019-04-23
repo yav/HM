@@ -23,12 +23,15 @@ import Parser.AST
   '['               { Lexeme { lexemeRange = $$, lexemeToken = TokBracketL } }
   ']'               { Lexeme { lexemeRange = $$, lexemeToken = TokBracketR } }
   ','               { Lexeme { lexemeRange = $$, lexemeToken = TokComma } }
+  '`'               { Lexeme { lexemeRange = $$, lexemeToken = TokBackTick } }
   '='               { Lexeme { lexemeRange = $$, lexemeToken = TokEq } }
   'do'              { Lexeme { lexemeRange = $$, lexemeToken = TokKwDo } }
   'if'              { Lexeme { lexemeRange = $$, lexemeToken = TokKwIf } }
   'case'            { Lexeme { lexemeRange = $$, lexemeToken = TokKwCase } }
   'then'            { Lexeme { lexemeRange = $$, lexemeToken = TokKwThen } }
   'else'            { Lexeme { lexemeRange = $$, lexemeToken = TokKwElse } }
+  'let'             { Lexeme { lexemeRange = $$, lexemeToken = TokKwLet } }
+  'in'              { Lexeme { lexemeRange = $$, lexemeToken = TokKwIn } }
 
   IDENT             { $$@Lexeme { lexemeToken = TokIdent } }
   OP                { $$@Lexeme { lexemeToken = TokOp } }
@@ -44,14 +47,25 @@ import Parser.AST
 %%
 
 decl                               :: { Decl }
-  : exprInfixLeft exprSimpleApp
-      '=' expr                        {% mkDecl ($1 $2) $4 }
+  : ident '=' expr                    { psynAt $1 $3 (DDef $1 [] $3) }
+  | ident patAtoms '=' expr           { psynAt $1 $4 (DDef $1 $2 $4) }
+  | 'let' decls 'in' decls            { psynAt $1 $4 (DLet $2 $4) }
+
+decls                              :: { [Decl] }
+  : '{' SepBy1(';', decl) '}'         { $2 }
+  | '{' '}'                           { [] }
 
 op :: { Name }
   : OP                                { mkUnqual $1 }
+  | '`' IDENT '`'                     { mkUnqual $2 }
+
+
+ident                              :: { Ident }
+  : IDENT                             { mkIdent $1 }
+  | '(' OP ')'                        { mkIdent $2 }
 
 name                               :: { Name }
-  : IDENT                             { mkUnqual $1 }
+  : ident                             { Unqual $1 }
 
 expr                               :: { Expr }
   : exprInfixLeft exprApp             { $1 $2 }
@@ -73,6 +87,7 @@ exprSimpleApp                      :: { Expr }
 longExpr                           :: { Expr }
   : '\\' patAtoms '->' expr           { psynAt $1 $4 (EAbs $2 $4) }
   | 'if' matches 'else' expr          { psynAt $1 $4 (EIf $2 $4) }
+  | 'let' decls 'in' expr             { psynAt $1 $4 (ELet $2 $4) }
 
 exprAtom                           :: { Expr }
   : '(' exprsComma ')'                { case $2 of

@@ -13,7 +13,6 @@ module Parser.Lexer
   ) where
 import Data.Text(Text)
 import qualified Data.Text as Text
-import qualified Data.Map as Map
 import qualified Data.Char as Char
 import Data.Ratio((%))
 
@@ -73,6 +72,8 @@ $white+             { return [] }
 "then"              { lexeme TokKwThen    }
 "else"              { lexeme TokKwElse    }
 "do"                { lexeme TokKwDo      }
+"let"               { lexeme TokKwLet     }
+"in"                { lexeme TokKwIn      }
 
 "("                 { lexeme TokParenL    }
 ")"                 { lexeme TokParenR    }
@@ -82,6 +83,7 @@ $white+             { return [] }
 "]"                 { lexeme TokBracketR  }
 ","                 { lexeme TokComma     }
 ";"                 { lexeme TokSemi      }
+"`"                 { lexeme TokBackTick  }
 
 "<-"                { lexeme TokArrowL    }
 "->"                { lexeme TokArrowR    }
@@ -109,12 +111,13 @@ data Token =
 
   | TokInt !Integer | TokReal !Rational
 
-  | TokKwIf | TokKwCase | TokKwThen | TokKwElse | TokKwDo
+  | TokKwIf | TokKwCase | TokKwThen | TokKwElse | TokKwDo | TokKwLet | TokKwIn
 
   | TokParenL | TokParenR
   | TokBraceL | TokBraceR
   | TokBracketL | TokBracketR
   | TokSemi | TokComma
+  | TokBackTick
 
   | TokArrowL | TokArrowR
   | TokBackSlash | TokBar

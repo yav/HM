@@ -71,7 +71,7 @@ instance HasRange a => HasRange [a] where
   range xs = case xs of
                []     -> panic "range" ["Range of []"]
                [x]    -> range x
-               x : xs -> x <-> last xs
+               x : ys -> x <-> last ys
 
 (<->) :: (HasRange a, HasRange b) => a -> b -> SourceRange
 x <-> y = SourceRange { sourceFrom = sourceFrom (range x)

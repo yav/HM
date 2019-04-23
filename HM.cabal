@@ -16,6 +16,7 @@ library
   exposed-modules:     AST,
                        SynCat,
                        HMPanic,
+                       Pretty,
                        Parser
                        Parser.Lexer,
                        Parser.Monad,
@@ -26,6 +27,7 @@ library
                        containers,
                        array,
                        alex-tools,
+                       pretty,
                        panic
   hs-source-dirs:      src
   build-tools:         alex, happy

@@ -4,11 +4,15 @@ module AST where
 import Data.Kind(Type)
 import SynCat
 
+
+-- | A family of types implementing all syntactic categories.
+type Syntax = SynCat -> Type
+
 -- | 'Ident' is used to name entities.
-type family Ident (i :: SynCat -> Type)
+type family Ident (syn :: Syntax)
 
 -- | 'Name' is used to refer to entities.
-type family Name  (i :: SynCat -> Type)
+type family Name  (syn :: Syntax)
 
 data Syn syn c =
     (c ~ Expr)  => EInfix (syn Expr) (Name syn) (syn Expr)
@@ -21,7 +25,7 @@ data Syn syn c =
   | (c ~ Expr)  => ETuple [syn Expr]
   | (c ~ Expr)  => EList [syn Expr]
   | (c ~ Expr)  => EListComp (syn Expr) [[syn Guard]]
-  | (c ~ Expr)  => ELet (syn Decl) (syn Expr)
+  | (c ~ Expr)  => ELet [syn Decl] (syn Expr)
 
   | (c ~ Pat)   => PVar (Ident syn)
   | (c ~ Pat)   => PWild
@@ -42,10 +46,8 @@ data Syn syn c =
 
   | (c ~ Alt)   => CaseAlt (syn Pat) [syn Match]
 
-  | (c ~ Decl)  => DFun (Ident syn) [syn Pat] (syn Expr)
-  | (c ~ Decl)  => DPBind (syn Pat) (syn Expr)
-  | (c ~ Decl)  => DAnd (syn Decl) (syn Decl)
-  | (c ~ Decl)  => DLet (syn Decl) (syn Decl)
+  | (c ~ Decl)  => DDef (Ident syn) [syn Pat] (syn Expr)
+  | (c ~ Decl)  => DLet [syn Decl] [syn Decl]
 
 
 
