@@ -41,6 +41,10 @@ instance Printable syn => PrettySyn (Syn syn) where
                         , "in" <+> ppSyn e
                         ]
 
+      StmtBind p e -> ppSyn p <+> "<-" <+> ppSyn e
+      StmtNoBind e -> ppSyn e
+      StmtLet ds   -> "let" <+> ppBraceBlock (map ppSyn ds)
+
 
 --------------------------------------------------------------------------------
 

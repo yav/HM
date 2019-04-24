@@ -49,11 +49,13 @@ import Parser.AST
 decl                               :: { Decl }
   : ident '=' expr                    { psynAt $1 $3 (DDef $1 [] $3) }
   | ident patAtoms '=' expr           { psynAt $1 $4 (DDef $1 $2 $4) }
-  | 'let' decls 'in' decls            { psynAt $1 $4 (DLet $2 $4) }
+  | 'let' decls 'in' decls            { psynAt $1 (fst $4)
+                                                  (DLet (snd $2) (snd $4)) }
 
-decls                              :: { [Decl] }
-  : '{' SepBy1(';', decl) '}'         { $2 }
-  | '{' '}'                           { [] }
+decls                              :: { (SourceRange, [Decl]) }
+  : '{' SepBy1(';', decl) '}'         { ($1 <-> $3, $2) }
+  | '{' '}'                           { ($1 <-> $2, []) }
+
 
 op :: { Name }
   : OP                                { mkUnqual $1 }
@@ -68,37 +70,46 @@ name                               :: { Name }
   : ident                             { Unqual $1 }
 
 expr                               :: { Expr }
-  : exprInfixLeft exprApp             { $1 $2 }
+  : dexpr                             {% dexprToExpr $1 }
 
-exprInfixLeft                      :: { Expr -> Expr }
-  : exprInfixLeft exprSimpleApp op    { let left = $1 $2
-                                        in psynAt left $3 . EInfix left $3 }
-  |                                   { id }
-
-exprApp                            :: { Expr }
-  : exprSimpleApp longExpr            { psynAt $1 $2 (EApp $1 $2) }
-  | exprSimpleApp                     { $1 }
-  | longExpr                          { $1 }
+exprAtom                           :: { Expr }
+  : dexprAtom                         {% dexprToExpr $1 }
 
 exprSimpleApp                      :: { Expr }
-  : exprAtom                          { $1 }
-  | exprSimpleApp exprAtom            { psynAt $1 $2 (EApp $1 $2) }
+  : dexprSimpleApp                    {% dexprToExpr $1 }
+
+dexpr                              :: { DExpr }
+  : dexprInfixLeft dexprApp           {% $1 $2 }
+
+dexprInfixLeft                     :: { DExpr -> Parser DExpr }
+  : dexprInfixLeft dexprSimpleApp op  { mkInfix ($1 $2) $3 }
+  |                                   { pure }
+
+dexprApp                           :: { DExpr }
+  : exprSimpleApp longExpr            { Expr (psynAt $1 $2 (EApp $1 $2)) }
+  | dexprSimpleApp                    { $1 }
+  | longExpr                          { Expr $1 }
+
+dexprSimpleApp                     :: { DExpr }
+  : dexprAtom                         { $1 }
+  | exprSimpleApp exprAtom            { Expr (psynAt $1 $2 (EApp $1 $2)) }
 
 longExpr                           :: { Expr }
   : '\\' patAtoms '->' expr           { psynAt $1 $4 (EAbs $2 $4) }
   | 'if' matches 'else' expr          { psynAt $1 $4 (EIf $2 $4) }
-  | 'let' decls 'in' expr             { psynAt $1 $4 (ELet $2 $4) }
+  | dexprAtom 'in' expr               {% mkLet $1 $3 }
 
-exprAtom                           :: { Expr }
-  : '(' exprsComma ')'                { case $2 of
-                                          [e] -> e
-                                          x   -> psynAt $1 $3 (ETuple x) }
-  | '[' exprsComma ']'                { psynAt $1 $3 (EList $2) }
-  | '[' expr lcBranches ']'           { psynAt $1 $3 (EListComp $2 $3) }
-  | name                              { psynAt $1 $1 (EVar $1) }
-  | 'case' expr '{' alts '}'          { psynAt $1 $5 (ECase $2 $4) }
-  | 'do' '{' stmts ';' expr '}'       { psynAt $1 $6 (EDo $3 $5) }
-  | 'do' '{' expr '}'                 { psynAt $1 $4 (EDo [] $3) }
+dexprAtom                          :: { DExpr }
+  : '(' exprsComma ')'                { Expr (case $2 of
+                                               [e] -> e
+                                               x   -> psynAt $1 $3 (ETuple x)) }
+  | '[' exprsComma ']'                { Expr (psynAt $1 $3 (EList $2)) }
+  | '[' expr lcBranches ']'           { Expr (psynAt $1 $3 (EListComp $2 $3)) }
+  | name                              { Expr (psynAt $1 $1 (EVar $1)) }
+  | 'case' expr '{' alts '}'          { Expr (psynAt $1 $5 (ECase $2 $4)) }
+  | 'do' '{' stmts ';' expr '}'       { Expr (psynAt $1 $6 (EDo $3 $5)) }
+  | 'do' '{' expr '}'                 { Expr (psynAt $1 $4 (EDo [] $3)) }
+  | 'let' decls                       { Decls $2 }
 
 exprsComma                         :: { [Expr] }
   :                                   { [] }
@@ -120,13 +131,13 @@ match                              :: { Match }
   : guards 'then' expr                { psynAt $1 $3 (IfMatch $1 $3) }
 
 pat                                :: { Pat }
-  : exprInfixLeft exprSimpleApp       {% exprToPat ($1 $2) }
+  : dexprInfixLeft dexprSimpleApp     {% exprToPat =<< dexprToExpr =<< $1 $2 }
 
 patAtoms                           :: { [Pat] }
   : List1(patAtom)                    { $1 }
 
 patAtom                            :: { Pat }
-  : exprAtom                          {% exprToPat $1 }
+  : dexprAtom                         {% exprToPat =<< dexprToExpr $1 }
 
 alts                               :: { [Alt] }
   : SepBy1(';',alt)                   { $1 }
@@ -141,7 +152,7 @@ guards                             :: { [Guard] }
   : SepBy1(',', guard)                { $1 }
 
 guard                              :: { Guard }
-  : expr                              { psynAt $1 $1 (GuardBool $1) }
+  : dexpr                             { mkGuard $1 }
   | pat '<-' expr                     { psynAt $1 $3 (GuardPat  $1 $3) }
 
 stmts                              :: { [Stmt] }
@@ -149,7 +160,7 @@ stmts                              :: { [Stmt] }
 
 stmt                               :: { Stmt }
   : pat '<-' expr                     { psynAt $1 $3 (StmtBind $1 $3) }
-  | expr                              { psynAt $1 $1 (StmtNoBind $1) }
+  | dexpr                             { mkStmt $1 }
 
 
 --------------------------------------------------------------------------------

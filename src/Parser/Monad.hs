@@ -9,13 +9,18 @@ module Parser.Monad
   , ParseError(..)
 
   , exprToPat
-  , mkDecl
 
   -- Utilities
   , List
   , single
   , snoc
   , toList
+  , DExpr(..)
+  , mkInfix
+  , mkGuard
+  , mkStmt
+  , mkLet
+  , dexprToExpr
   ) where
 
 import Control.Monad(liftM,ap)
@@ -93,6 +98,9 @@ newtype ParseError = ParseError (Maybe SourcePos) -- ^ Nothing means EOF
 
 instance Exception ParseError
 
+happyErrorAtR :: HasRange r => r -> Parser a
+happyErrorAtR x = happyErrorAt (sourceFrom (range x))
+
 happyErrorAt :: SourcePos -> Parser a
 happyErrorAt p = Parser (\_ -> Left (ParseError (Just p)))
 
@@ -121,7 +129,7 @@ exprToPat expr =
         Qual {} -> bad
         Unqual i
           | identText i == "_"    -> pure (mk PWild)
-          | otherwise             -> pure (mk (PVar i))
+          | otherwise             -> pure (mk (PVar i)) -- or Con
 
     EApp e1 e2 -> pApp e1 [e2]
 
@@ -144,9 +152,6 @@ exprToPat expr =
       _          -> bad
 
 
-mkDecl :: Expr -> Expr -> Parser Decl
-mkDecl = undefined
-
 --------------------------------------------------------------------------------
 
 type List a = [a] -> [a]
@@ -159,3 +164,37 @@ snoc xs a = xs . (a :)
 
 toList :: List a -> [a]
 toList xs = xs []
+
+
+--------------------------------------------------------------------------------
+data DExpr = Decls (SourceRange,[Decl]) | Expr Expr
+
+mkLet :: DExpr -> Expr -> Parser Expr
+mkLet de e =
+  case de of
+    Decls (r,ds) -> pure $ psynAt r e (ELet ds e)
+    Expr e1      -> happyErrorAtR e1
+
+dexprToExpr :: DExpr -> Parser Expr
+dexprToExpr de =
+  case de of
+    Decls (r,_) -> happyErrorAtR r
+    Expr e      -> pure e
+
+mkInfix :: Parser DExpr -> Name -> DExpr -> Parser DExpr
+mkInfix ml op rd =
+  do l <- dexprToExpr =<< ml
+     r <- dexprToExpr rd
+     pure (Expr (psynAt l r (EInfix l op r)))
+
+mkStmt :: DExpr -> Stmt
+mkStmt de =
+  case de of
+    Decls (r,ds) -> psynAt r r (StmtLet ds)
+    Expr e       -> psynAt e e (StmtNoBind e)
+
+mkGuard :: DExpr -> Guard
+mkGuard de =
+  case de of
+    Decls (r,ds) -> psynAt r r (GuardLet ds)
+    Expr e       -> psynAt e e (GuardBool e)

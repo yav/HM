@@ -37,12 +37,12 @@ data Syn syn c =
   | (c ~ Match) => IfMatch [syn Guard] (syn Expr)
 
   | (c ~ Guard) => GuardBool (syn Expr)
-  | (c ~ Guard) => GuardLet (syn Decl)
+  | (c ~ Guard) => GuardLet [syn Decl]
   | (c ~ Guard) => GuardPat (syn Pat)  (syn Expr)
 
   | (c ~ Stmt)  => StmtBind (syn Pat) (syn Expr)
   | (c ~ Stmt)  => StmtNoBind (syn Expr)
-  | (c ~ Stmt)  => StmtLet (syn Decl)
+  | (c ~ Stmt)  => StmtLet [syn Decl]
 
   | (c ~ Alt)   => CaseAlt (syn Pat) [syn Match]
 
