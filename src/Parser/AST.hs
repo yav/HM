@@ -1,4 +1,4 @@
-{-# Language TypeFamilies #-}
+{-# Language TypeFamilies, OverloadedStrings #-}
 module Parser.AST
   ( ParserSyn(..)
   , Expr
@@ -19,10 +19,12 @@ module Parser.AST
   ) where
 
 import Data.Text(Text)
+import Text.PrettyPrint(hcat)
 
 import AlexTools(SourceRange(..),Lexeme(..))
 import qualified SynCat as S
 import qualified AST
+import Pretty
 import HMPanic(panic)
 
 
@@ -88,4 +90,18 @@ mkIdent l = Ident { identText = lexemeText l, identRange = lexemeRange l }
 mkUnqual :: Lexeme t -> Name
 mkUnqual l = Unqual (mkIdent l)
 
+instance PrettySyn ParserSyn where
+  ppPrecSyn n p = ppPrecSyn n (psynNode p)
+
+
+-- instance PrettySyn (ParserSyn c) where
+
+instance Pretty Ident where
+  ppPrec _ p = pp (identText p)
+
+instance Pretty Name where
+  ppPrec n p =
+    case p of
+      Unqual i -> ppPrec n i
+      Qual i j -> hcat [ pp i, ".", pp j ]
 

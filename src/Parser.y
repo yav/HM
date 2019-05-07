@@ -39,6 +39,7 @@ import Parser.AST
   -- Literals
 
 %name decl decl
+%name decls decls
 %name expr expr
 
 %lexer { happyGetToken } { Lexeme { lexemeToken = TokEOF } }

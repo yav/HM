@@ -33,3 +33,15 @@ library
   build-tools:         alex, happy
   ghc-options:         -Wall
   default-language:    Haskell2010
+
+executable hmc
+  hs-source-dirs:      exe
+  main-is:             Main.hs
+  build-depends:       base,
+                       text,
+                       simple-get-opt >= 0.3,
+                       pretty,
+                       HM
+
+
+
